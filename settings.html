@@ -1,0 +1,99 @@
+<div class="character-grid-settings">
+    <div class="inline-drawer">
+        <div class="inline-drawer-toggle inline-drawer-header">
+            <b data-i18n="cg.settings.title">⊹ CHARACTER GRID ⊹</b>
+            <div class="inline-drawer-icon fa-solid fa-circle-chevron-down up"></div>
+        </div>
+        <div class="inline-drawer-content" style="display: none;">
+            <div class="acg-settings-card">
+                <p class="acg-settings-intro" data-i18n="cg.settings.intro">
+                    Choose how the character grid looks and what it shows.
+                </p>
+
+                <section class="acg-settings-section">
+                    <h4 class="acg-settings-heading" data-i18n="cg.settings.display">Display</h4>
+
+                    <label class="acg-settings-row" for="cg_card_theme">
+                        <span class="acg-settings-text">
+                            <span class="acg-settings-label" data-i18n="cg.settings.cardTheme">Card theme</span>
+                            <span class="acg-settings-desc" data-i18n="cg.settings.cardThemeDesc">Choose the gradient and text color shown over portraits.</span>
+                        </span>
+                        <select id="cg_card_theme" class="text_pole textarea_compact acg-settings-control">
+                            <option value="dark" data-i18n="cg.settings.dark">Dark</option>
+                            <option value="light" data-i18n="cg.settings.light">Light</option>
+                            <option value="custom" data-i18n="cg.settings.custom">Custom</option>
+                        </select>
+                    </label>
+
+                    <div id="cg_custom_colors" class="acg-settings-custom" hidden>
+                        <label class="acg-settings-row" for="cg_custom_gradient">
+                            <span class="acg-settings-text">
+                                <span class="acg-settings-label" data-i18n="cg.settings.gradientColor">Gradient color</span>
+                                <span class="acg-settings-desc" data-i18n="cg.settings.gradientColorDesc">Choose the color that fades upward over portraits.</span>
+                            </span>
+                            <input id="cg_custom_gradient" class="acg-settings-color" type="color" value="#08090b">
+                        </label>
+
+                        <label class="acg-settings-row" for="cg_custom_text">
+                            <span class="acg-settings-text">
+                                <span class="acg-settings-label" data-i18n="cg.settings.textColor">Text color</span>
+                                <span class="acg-settings-desc" data-i18n="cg.settings.textColorDesc">Choose the character name color.</span>
+                            </span>
+                            <input id="cg_custom_text" class="acg-settings-color" type="color" value="#f5f5f6">
+                        </label>
+                    </div>
+
+                    <label class="acg-settings-row" for="cg_grid_columns">
+                        <span class="acg-settings-text">
+                            <span class="acg-settings-label" data-i18n="cg.settings.columns">Columns</span>
+                            <span class="acg-settings-desc" data-i18n="cg.settings.columnsDesc">Use the exact selected count on larger screens. Phones use two columns.</span>
+                        </span>
+                        <select id="cg_grid_columns" class="text_pole textarea_compact acg-settings-control">
+                            <option value="auto" data-i18n="cg.settings.auto">Auto</option>
+                            <option value="3">3</option>
+                            <option value="4">4</option>
+                            <option value="5">5</option>
+                            <option value="6">6</option>
+                            <option value="7">7</option>
+                            <option value="8">8</option>
+                            <option value="9">9</option>
+                            <option value="10">10</option>
+                        </select>
+                    </label>
+
+                    <label class="acg-settings-row" for="cg_page_size">
+                        <span class="acg-settings-text">
+                            <span class="acg-settings-label" data-i18n="cg.settings.pageSize">Cards per page</span>
+                            <span class="acg-settings-desc" data-i18n="cg.settings.pageSizeDesc">Choose how many characters load in each page of the library.</span>
+                        </span>
+                        <select id="cg_page_size" class="text_pole textarea_compact acg-settings-control">
+                            <option value="24">24</option>
+                            <option value="48">48</option>
+                            <option value="96">96</option>
+                        </select>
+                    </label>
+                </section>
+
+                <section class="acg-settings-section">
+                    <h4 class="acg-settings-heading" data-i18n="cg.settings.features">Features</h4>
+
+                    <label class="acg-settings-row" for="cg_show_toolbar">
+                        <span class="acg-settings-text">
+                            <span class="acg-settings-label" data-i18n="cg.settings.showToolbar">Search and sort bar</span>
+                            <span class="acg-settings-desc" data-i18n="cg.settings.showToolbarDesc">Show a slim bar above the grid for finding and ordering characters. Press / to jump to search.</span>
+                        </span>
+                        <input id="cg_show_toolbar" class="acg-settings-check" type="checkbox">
+                    </label>
+
+                    <label class="acg-settings-row" for="cg_show_last_chat">
+                        <span class="acg-settings-text">
+                            <span class="acg-settings-label" data-i18n="cg.settings.showLastChat">Last chat time</span>
+                            <span class="acg-settings-desc" data-i18n="cg.settings.showLastChatDesc">Show when you last talked to each character under their name.</span>
+                        </span>
+                        <input id="cg_show_last_chat" class="acg-settings-check" type="checkbox">
+                    </label>
+                </section>
+            </div>
+        </div>
+    </div>
+</div>

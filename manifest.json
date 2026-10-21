@@ -1,0 +1,22 @@
+{
+    "display_name": "⊹ CHARACTER GRID ⊹",
+    "loading_order": 25,
+    "requires": [],
+    "optional": [],
+    "dependencies": [],
+    "js": "index.js",
+    "css": "style.css",
+    "author": "howardsierra (based on Ace Character Grid by aceenvw)",
+    "version": "0.3.0",
+    "license": "GPL-3.0-or-later",
+    "homePage": "https://github.com/howardsierra/Character-Grid",
+    "auto_update": true,
+    "i18n": {
+        "en-us": "i18n/en-us.json",
+        "ru-ru": "i18n/ru-ru.json"
+    },
+    "hooks": {
+        "disable": "cleanup",
+        "delete": "cleanup"
+    }
+}
