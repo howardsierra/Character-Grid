@@ -1,6 +1,8 @@
 {
     "cg.settings.title": "⊹ СЕТКА ПЕРСОНАЖЕЙ ⊹",
     "cg.settings.intro": "Настройте внешний вид сетки персонажей и то, что она показывает.",
+    "cg.settings.enabled": "Включить сетку персонажей",
+    "cg.settings.enabledDesc": "Выключите, чтобы вернуть обычный главный экран SillyTavern, не отключая расширение.",
     "cg.settings.display": "Отображение",
     "cg.settings.cardTheme": "Оформление карточек",
     "cg.settings.cardThemeDesc": "Выберите градиент и цвет текста поверх портретов.",

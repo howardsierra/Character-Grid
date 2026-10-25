@@ -25,6 +25,7 @@ const BODY_CLASS = 'cg-active';
 const TAG = 'CG';
 
 const DEFAULT_SETTINGS = Object.freeze({
+    enabled: true,
     pageSize: 48,
     gridColumns: '6',
     cardTheme: 'dark',
@@ -40,7 +41,7 @@ const PAGE_SIZE_VALUES = new Set([24, 48, 96]);
 const GRID_COLUMN_VALUES = new Set(['auto', '3', '4', '5', '6', '7', '8', '9', '10']);
 const CARD_THEME_VALUES = new Set(['dark', 'light', 'custom']);
 const SORT_MODE_VALUES = new Set(['recent', 'name', 'favourites']);
-const BOOLEAN_SETTINGS = ['showToolbar', 'showLastChat', 'touchHintShown'];
+const BOOLEAN_SETTINGS = ['enabled', 'showToolbar', 'showLastChat', 'touchHintShown'];
 const HEX_COLOR_PATTERN = /^#[\da-f]{6}$/i;
 const SHEET_QUERY = '(max-width: 640px)';
 const CHAT_SEARCH_THRESHOLD = 6;
@@ -314,6 +315,7 @@ function loadSettings() {
 
 function getSettingsKey() {
     return [
+        state.settings.enabled,
         state.settings.pageSize,
         state.settings.gridColumns,
         state.settings.cardTheme,
@@ -1496,6 +1498,8 @@ function syncSettingsControls() {
     const customColors = query('#cg_custom_colors');
     const showToolbar = query('#cg_show_toolbar');
     const showLastChat = query('#cg_show_last_chat');
+    const enabled = query('#cg_enabled');
+    if (enabled instanceof HTMLInputElement) enabled.checked = state.settings.enabled;
     if (pageSize instanceof HTMLSelectElement) pageSize.value = String(state.settings.pageSize);
     if (columns instanceof HTMLSelectElement) columns.value = state.settings.gridColumns;
     if (cardTheme instanceof HTMLSelectElement) cardTheme.value = state.settings.cardTheme;
@@ -1512,6 +1516,11 @@ function handleSettingsChange(event) {
     if (event.type === 'input' && control.type !== 'color') return;
 
     let changed = false;
+    if (control.id === 'cg_enabled') {
+        state.settings.enabled = control.checked;
+        changed = true;
+        updateVisibility();
+    }
     if (control.id === 'cg_page_size' && PAGE_SIZE_VALUES.has(Number(control.value))) {
         state.settings.pageSize = Number(control.value);
         state.page = 1;
@@ -1591,7 +1600,7 @@ async function mountSettings(lifecycle) {
 /* ---------- Lifecycle ---------- */
 
 function isLibraryVisible() {
-    return state.context?.getCurrentChatId?.() === undefined;
+    return Boolean(state.settings?.enabled) && state.context?.getCurrentChatId?.() === undefined;
 }
 
 function scheduleGalleryRender() {
@@ -1642,7 +1651,10 @@ function handleSettingsUpdated() {
     const languageChanged = state.uiLanguage !== language;
     state.settingsKey = nextKey;
     syncSettingsControls();
-    if (settingsChanged) applyDisplayPreferences();
+    if (settingsChanged) {
+        applyDisplayPreferences();
+        updateVisibility();
+    }
     if (settingsChanged || languageChanged) scheduleGalleryRender();
 }
 

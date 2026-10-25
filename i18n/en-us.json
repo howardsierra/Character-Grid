@@ -1,6 +1,8 @@
 {
     "cg.settings.title": "⊹ CHARACTER GRID ⊹",
     "cg.settings.intro": "Choose how the character grid looks and what it shows.",
+    "cg.settings.enabled": "Enable character grid",
+    "cg.settings.enabledDesc": "Turn off to get SillyTavern's normal home screen back without disabling the extension.",
     "cg.settings.display": "Display",
     "cg.settings.cardTheme": "Card theme",
     "cg.settings.cardThemeDesc": "Choose the gradient and text color shown over portraits.",
