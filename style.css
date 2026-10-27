@@ -531,7 +531,14 @@ body.cg-active #sheld {
 .acg-panel-layer {
     position: fixed;
     z-index: 2;
-    inset: var(--topBarBlockSize, 50px) 0 0 0;
+    top: var(--topBarBlockSize, 50px);
+    left: 0;
+    /* Explicit viewport sizing: SillyTavern's mobile layout can leave the
+       containing block with no height, so inset alone collapses the layer. */
+    width: 100vw;
+    width: 100dvw;
+    height: calc(100vh - var(--topBarBlockSize, 50px));
+    height: calc(100dvh - var(--topBarBlockSize, 50px));
     display: flex;
     justify-content: flex-end;
 }
