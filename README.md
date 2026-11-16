@@ -15,7 +15,8 @@ way until you reach for them.
   one with its last message, message count, and when you last talked. Open any
   chat, continue the current one, or start a new one.
 - **Rename and delete chats** right from the list.
-- **Search and sort** the grid (Recent, A–Z, Favourites). Press <kbd>/</kbd> to
+- **Search and sort** the grid (Recent, A–Z, Favourites). Search matches names,
+  tags, and creators. Press <kbd>/</kbd> to
   jump to search, <kbd>Esc</kbd> to clear it.
 - **Optional last-chat time** under each name.
 - **Adapts to your device.** On desktop and tablets the chats open in a side
@@ -44,7 +45,7 @@ automatically.
 | Open the current chat | Click a portrait | Tap a portrait |
 | See all chats | Hover → <i>clock</i> icon, or right-click | Press and hold a portrait |
 | Delete a character | Hover → trash icon | Press and hold → trash icon |
-| Close the chats panel | <kbd>Esc</kbd>, ✕, or click outside | Swipe down, ✕, or tap outside |
+| Close the chats panel | <kbd>Esc</kbd>, ✕, Back, or click outside | Swipe down, Back, ✕, or tap outside |
 
 Inside the chats panel:
 

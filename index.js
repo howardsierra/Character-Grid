@@ -51,6 +51,7 @@ const LONG_PRESS_MS = 350;
 // usually ready when the panel opens without taxing quick taps.
 const PREFETCH_DELAY_MS = 150;
 const CHAT_CACHE_FRESH_MS = 5000;
+const CHAT_PREFETCH_FRESH_MS = 60000;
 
 const STRINGS = {
     en: {
@@ -184,6 +185,8 @@ const state = {
     recordByAvatar: new Map(),
     chatCache: new Map(),
     chatRequests: new Map(),
+    chatGeneration: 0,
+    historyPopPending: false,
     listeners: [],
     domListeners: [],
     busyAvatars: new Set(),
@@ -374,6 +377,8 @@ function toTimestamp(value) {
 
 function normalizeCharacters() {
     const context = refreshContext();
+    const tagNameById = new Map((Array.isArray(context.tags) ? context.tags : [])
+        .map((tag) => [tag?.id, typeof tag?.name === 'string' ? tag.name : '']));
     const records = (Array.isArray(context.characters) ? context.characters : [])
         .map((character, sourceIndex) => {
             const avatarKey = typeof character?.avatar === 'string' ? character.avatar.trim() : '';
@@ -389,12 +394,16 @@ function normalizeCharacters() {
             const name = typeof character?.name === 'string' && character.name.trim()
                 ? character.name.trim()
                 : text('untitled');
+            const tagNames = (Array.isArray(context.tagMap?.[avatarKey]) ? context.tagMap[avatarKey] : [])
+                .map((id) => tagNameById.get(id))
+                .filter(Boolean);
+            const creator = typeof character?.data?.creator === 'string' ? character.data.creator : '';
             return {
                 avatarKey,
                 avatarUrl,
                 favourite: isFavourite(character),
                 name,
-                searchName: foldText(name),
+                searchName: foldText([name, creator, ...tagNames].join('\n')),
                 dateLastChat: toTimestamp(character?.date_last_chat),
                 sourceIndex,
             };
@@ -809,7 +818,9 @@ async function enterCharacter(record, button, { chatId = null, newChat = false }
             const name = state.context.characters[index]?.name || record.name;
             target = `${name} - ${state.context.humanizedDateTime?.() ?? Date.now()}`;
         }
-        if (target && String(state.context.characterId) !== String(index)) {
+        if (target
+            && String(state.context.characterId) !== String(index)
+            && state.context.characters[index]?.chat !== target) {
             await updateRemoteChatName(String(index), target);
         }
         await state.context.selectCharacterById(index, { switchMenu: false });
@@ -993,6 +1004,7 @@ function openPanel(record, trigger) {
         if (parts.input instanceof HTMLInputElement) parts.input.value = '';
         state.panel.returnFocus = trigger instanceof HTMLElement ? trigger : null;
     }
+    pushPanelHistory();
 
     renderPanel();
     parts.layer.hidden = false;
@@ -1012,12 +1024,13 @@ function openPanel(record, trigger) {
     void loadChats(record);
 }
 
-function closePanel({ immediate = false, restoreFocus = true } = {}) {
+function closePanel({ immediate = false, restoreFocus = true, fromHistory = false } = {}) {
     const parts = getPanelParts();
     if (!parts || parts.layer.hidden) {
         state.panel.record = null;
         return;
     }
+    if (!fromHistory && state.panel.record) popPanelHistory();
     const returnFocus = state.panel.returnFocus;
     state.panel.requestId += 1;
     state.panel.record = null;
@@ -1072,31 +1085,38 @@ function normalizeChat(chat) {
  * Fetches a character's chats, sharing one request between callers (a press
  * prefetch and the panel) and reusing results younger than CHAT_CACHE_FRESH_MS.
  */
-function fetchChats(record, index, { force = false } = {}) {
+function fetchChats(record, index, { force = false, maxAge = CHAT_CACHE_FRESH_MS } = {}) {
     const cached = state.chatCache.get(record.avatarKey);
-    if (!force && cached && Date.now() - cached.fetchedAt < CHAT_CACHE_FRESH_MS) {
+    if (!force && cached && Date.now() - cached.fetchedAt < maxAge) {
         return Promise.resolve(cached.chats);
     }
     const pending = state.chatRequests.get(record.avatarKey);
     if (pending) return pending;
 
+    const generation = state.chatGeneration;
     const request = getPastCharacterChats(index)
         .then((response) => {
             const chats = (Array.isArray(response) ? response : [])
                 .map(normalizeChat)
                 .filter(Boolean)
                 .sort((left, right) => right.timestamp - left.timestamp || left.id.localeCompare(right.id));
-            state.chatCache.set(record.avatarKey, { chats, fetchedAt: Date.now() });
+            // Chats changed while this was in flight: use it once, don't keep it.
+            if (generation === state.chatGeneration) {
+                state.chatCache.set(record.avatarKey, { chats, fetchedAt: Date.now() });
+            }
             return chats;
         })
-        .finally(() => state.chatRequests.delete(record.avatarKey));
+        .finally(() => {
+            if (state.chatRequests.get(record.avatarKey) === request) state.chatRequests.delete(record.avatarKey);
+        });
     state.chatRequests.set(record.avatarKey, request);
     return request;
 }
 
 function prefetchChats(record) {
     const index = findCurrentCharacter(record.avatarKey);
-    if (index >= 0) fetchChats(record, index).catch((error) => warn('prefetch', error));
+    if (index < 0) return;
+    fetchChats(record, index, { maxAge: CHAT_PREFETCH_FRESH_MS }).catch((error) => warn('prefetch', error));
 }
 
 async function loadChats(record, { force = false } = {}) {
@@ -1188,8 +1208,22 @@ function renderPanel() {
 
 function renderChatList() {
     const parts = getPanelParts();
+    if (!parts || !state.panel.record) return;
+    // Rebuilding the rows drops keyboard focus to the page; keep it in the panel.
+    const active = document.activeElement;
+    const focused = active instanceof HTMLElement && parts.list.contains(active) ? active : null;
+    renderChatListContent(parts);
+    if (!focused || parts.list.contains(document.activeElement)) return;
+    const selector = focused.dataset.chat && focused.dataset.action
+        ? `[data-action="${focused.dataset.action}"][data-chat="${CSS.escape(focused.dataset.chat)}"]`
+        : '';
+    const replacement = selector ? parts.list.querySelector(selector) : null;
+    (replacement instanceof HTMLElement && !replacement.disabled ? replacement : parts.panel)
+        ?.focus({ preventScroll: true });
+}
+
+function renderChatListContent(parts) {
     const record = state.panel.record;
-    if (!parts || !record) return;
     const { list } = parts;
     list.removeAttribute('aria-busy');
 
@@ -1566,7 +1600,48 @@ function handleRootClick(event) {
     if (button.dataset.action === 'delete') void confirmDelete(record, button);
 }
 
+// The panel adds one history entry while open so the browser/phone Back
+// action closes it instead of leaving SillyTavern.
+function pushPanelHistory() {
+    try {
+        if (!window.history.state?.cgPanel) {
+            window.history.pushState({ ...window.history.state, cgPanel: true }, '');
+        }
+    } catch (error) {
+        warn('history', error);
+    }
+}
+
+function popPanelHistory() {
+    try {
+        if (!window.history.state?.cgPanel) return;
+        state.historyPopPending = true;
+        window.history.back();
+    } catch (error) {
+        state.historyPopPending = false;
+        warn('history', error);
+    }
+}
+
+function handlePopState() {
+    if (state.historyPopPending) {
+        // Our own back() landing. If the panel was reopened meanwhile, give it
+        // its history entry back rather than closing it.
+        state.historyPopPending = false;
+        if (state.panel.record) pushPanelHistory();
+        return;
+    }
+    if (state.panel.record) closePanel({ fromHistory: true });
+}
+
 function handleDocumentKeydown(event) {
+    if (event.key === 'Escape' && state.panel.record && !event.defaultPrevented
+        && !document.querySelector('dialog[open]')) {
+        // Focus can end up outside the panel (e.g. after a popup closes).
+        event.preventDefault();
+        closePanel();
+        return;
+    }
     if (event.key !== '/' || event.ctrlKey || event.metaKey || event.altKey) return;
     if (!state.root || state.root.hidden || state.panel.record || !state.settings.showToolbar) return;
     const target = event.target;
@@ -1731,7 +1806,9 @@ function handleChatChanged() {
 }
 
 function handleChatsChanged() {
+    state.chatGeneration += 1;
     state.chatCache.clear();
+    state.chatRequests.clear();
     if (isLibraryVisible()) invalidateRecords();
 }
 
@@ -1782,6 +1859,7 @@ function registerEvents() {
         listen(eventName, handleChatsChanged);
     }
     listenDom(document, 'keydown', handleDocumentKeydown);
+    listenDom(window, 'popstate', handlePopState);
 }
 
 async function start() {
@@ -1834,6 +1912,8 @@ export function cleanup() {
     state.recordByAvatar.clear();
     state.chatCache.clear();
     state.chatRequests.clear();
+    state.chatGeneration = 0;
+    state.historyPopPending = false;
     state.busyAvatars.clear();
     state.query = '';
     state.page = 1;
