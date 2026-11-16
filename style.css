@@ -164,6 +164,10 @@ body.cg-active #sheld {
 .acg-card__image {
     z-index: 1;
     display: block;
+    /* Keep iOS from offering its own image menu on press-and-hold. */
+    pointer-events: none;
+    -webkit-touch-callout: none;
+    -webkit-user-drag: none;
     object-fit: cover;
     object-position: center;
     transition: scale 180ms ease-out;
@@ -919,6 +923,15 @@ body.cg-active #sheld {
     .acg-chat__tools {
         opacity: 0.5;
     }
+
+    .acg-icon-button--small {
+        width: 2.75rem;
+        height: 2.75rem;
+    }
+}
+
+[data-action="new-chat"][hidden] {
+    display: none;
 }
 
 @media (hover: hover) and (pointer: fine) {
@@ -1175,6 +1188,13 @@ body.cg-active #sheld {
 
     .acg-toolbar .acg-search {
         flex: 1 1 auto;
+    }
+}
+
+/* Tablets: dense column settings make cards too small to tap comfortably. */
+@media (min-width: 561px) and (max-width: 900px) {
+    #character-grid-root:is([data-columns="5"], [data-columns="6"], [data-columns="7"], [data-columns="8"], [data-columns="9"], [data-columns="10"]) .acg-grid {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
     }
 }
 

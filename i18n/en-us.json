@@ -14,7 +14,7 @@
     "cg.settings.textColor": "Text color",
     "cg.settings.textColorDesc": "Choose the character name color.",
     "cg.settings.columns": "Columns",
-    "cg.settings.columnsDesc": "Use the exact selected count on larger screens. Phones use two columns.",
+    "cg.settings.columnsDesc": "Use the exact selected count on larger screens. Tablets use at most four columns and phones use two.",
     "cg.settings.pageSize": "Cards per page",
     "cg.settings.pageSizeDesc": "Choose how many characters load in each page of the library.",
     "cg.settings.auto": "Auto",

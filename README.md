@@ -63,7 +63,8 @@ Open **Extensions → ⊹ CHARACTER GRID ⊹** to choose:
 - **Enable character grid** — Turn the grid off to get SillyTavern's normal
   home screen back without disabling the extension. On by default.
 - **Card theme** — Dark, Light, or Custom portrait nameplates.
-- **Columns** — Auto or 3–10 columns. The default is 6. Phones use two.
+- **Columns** — Auto or 3–10 columns. The default is 6. Tablets use at most
+  four and phones use two.
 - **Cards per page** — 24, 48, or 96. The default is 48.
 - **Search and sort bar** — On by default.
 - **Last chat time** — Off by default.

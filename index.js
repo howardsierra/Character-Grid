@@ -77,6 +77,7 @@ const STRINGS = {
         close: 'Close',
         continue: 'Continue',
         newChat: 'New chat',
+        startChat: 'Start chat',
         deleteCharacter: 'Delete character',
         searchChats: 'Search chats',
         loadingChats: 'Loading chats…',
@@ -100,6 +101,7 @@ const STRINGS = {
         chatOpenError: 'Could not open this chat.',
         chatDeleteError: 'Could not delete this chat.',
         chatRenameError: 'Could not rename this chat.',
+        chatNameTaken: 'Another chat is already called “{name}”.',
         touchHint: 'Press and hold a portrait to see its chats.',
     },
     ru: {
@@ -130,6 +132,7 @@ const STRINGS = {
         close: 'Закрыть',
         continue: 'Продолжить',
         newChat: 'Новый чат',
+        startChat: 'Начать чат',
         deleteCharacter: 'Удалить персонажа',
         searchChats: 'Поиск чатов',
         loadingChats: 'Загрузка чатов…',
@@ -157,6 +160,7 @@ const STRINGS = {
         chatOpenError: 'Не удалось открыть этот чат.',
         chatDeleteError: 'Не удалось удалить этот чат.',
         chatRenameError: 'Не удалось переименовать этот чат.',
+        chatNameTaken: 'Чат с названием «{name}» уже существует.',
         touchHint: 'Нажмите и удерживайте портрет, чтобы увидеть его чаты.',
     },
 };
@@ -1112,8 +1116,14 @@ function renderPanel() {
 
     parts.close.setAttribute('aria-label', text('close'));
     parts.close.title = text('close');
-    parts.resume.replaceChildren(createIcon('fa-solid fa-play'), document.createTextNode(text('continue')));
+    // With no chats yet, "Continue" and "New chat" would do the same thing.
+    const noChats = Array.isArray(chats) && chats.length === 0;
+    parts.resume.replaceChildren(
+        createIcon('fa-solid fa-play'),
+        document.createTextNode(text(noChats ? 'startChat' : 'continue')),
+    );
     parts.fresh.replaceChildren(createIcon('fa-solid fa-plus'), document.createTextNode(text('newChat')));
+    parts.fresh.hidden = noChats;
     parts.remove.setAttribute('aria-label', text('deleteCharacter'));
     parts.remove.title = text('deleteCharacter');
 
@@ -1189,6 +1199,20 @@ function createListMessage(iconClass, titleText, hintText, action) {
     return item;
 }
 
+// SillyTavern names chats "<character> - 2026-10-27@02h11m27s077ms" (older
+// versions add spaces: "2023-5-12 @21h 32m 29s 224ms").
+const CHAT_DATE_PATTERN = /^(\d{4})-(\d{1,2})-(\d{1,2}) ?@ ?(\d{1,2})h ?(\d{1,2})m ?(\d{1,2})s(?: ?\d{1,3}ms)?$/;
+
+function getChatDisplayName(chatId, characterName) {
+    const prefix = characterName ? `${characterName} - ` : '';
+    const name = prefix && chatId.startsWith(prefix) ? chatId.slice(prefix.length) : chatId;
+    const match = name.match(CHAT_DATE_PATTERN);
+    if (!match) return name || chatId;
+    const [, year, month, day, hour, minute, second] = match.map(Number);
+    const date = new Date(year, month - 1, day, hour, minute, second);
+    return Number.isNaN(date.getTime()) ? name : formatAbsolute(date.getTime());
+}
+
 function createChatRow(chat, isCurrent) {
     const row = createElement('li', 'acg-chat');
     if (isCurrent) row.classList.add('acg-chat--current');
@@ -1197,7 +1221,9 @@ function createChatRow(chat, isCurrent) {
     open.dataset.chat = chat.id;
 
     const title = createElement('span', 'acg-chat__title');
-    title.append(createElement('span', 'acg-chat__name', chat.id));
+    const name = createElement('span', 'acg-chat__name', getChatDisplayName(chat.id, state.panel.record?.name));
+    name.title = chat.id;
+    title.append(name);
     if (isCurrent) title.append(createElement('span', 'acg-chat__badge', text('current')));
 
     const preview = createElement('span', 'acg-chat__preview', chat.preview);
@@ -1266,6 +1292,13 @@ async function renameChat(record, chatId, button) {
 
         const wasCurrent = getCurrentChatName(record) === chatId;
         const before = new Set((state.panel.chats ?? []).map((chat) => chat.id));
+        const taken = [...before].some((id) => id !== chatId && foldText(id) === foldText(newName));
+        if (taken) {
+            const message = text('chatNameTaken', { name: newName });
+            announce(message);
+            globalThis.toastr?.warning?.(message, text('renameChat'));
+            return;
+        }
         await renameGroupOrCharacterChat({
             characterId: String(index),
             oldFileName: chatId,
