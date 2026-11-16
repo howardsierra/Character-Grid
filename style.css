@@ -125,6 +125,51 @@ body.cg-active #sheld {
     contain: layout style;
 }
 
+.acg-card {
+    transition: scale 160ms ease-out;
+}
+
+/* Immediate feedback while a press-and-hold is building up. */
+.acg-card--pressing {
+    scale: 0.97;
+}
+
+.acg-card.is-loading .acg-card__image-frame::after,
+.acg-chat.is-loading .acg-chat__tools::before {
+    width: 1.1rem;
+    height: 1.1rem;
+    border: 2px solid color-mix(in srgb, currentColor 30%, transparent);
+    border-top-color: currentColor;
+    border-radius: 50%;
+    content: "";
+    animation: acg-spin 700ms linear infinite;
+}
+
+.acg-card.is-loading .acg-card__image-frame::after {
+    position: absolute;
+    z-index: 3;
+    top: 0.75rem;
+    left: 0.75rem;
+    color: #fff;
+}
+
+.acg-chat.is-loading .acg-chat__tools {
+    opacity: 1;
+}
+
+.acg-chat.is-loading .acg-chat__tools::before {
+    margin-inline: 0.75rem;
+    color: var(--acg-accent);
+}
+
+.acg-chat.is-loading .acg-chat__tools button {
+    display: none;
+}
+
+@keyframes acg-spin {
+    to { rotate: 360deg; }
+}
+
 .acg-card__open {
     display: block;
     width: 100%;
@@ -557,8 +602,6 @@ body.cg-active #sheld {
     background: var(--acg-overlay);
     opacity: 0;
     transition: opacity var(--acg-panel-duration, 240ms) ease;
-    -webkit-backdrop-filter: blur(2px);
-    backdrop-filter: blur(2px);
 }
 
 .acg-panel {
@@ -1259,6 +1302,10 @@ body.cg-active #sheld {
 
     .acg-skeleton {
         animation: none;
+    }
+
+    .acg-card {
+        transition: none;
     }
 }
 

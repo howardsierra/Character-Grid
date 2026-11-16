@@ -46,7 +46,11 @@ const HEX_COLOR_PATTERN = /^#[\da-f]{6}$/i;
 const SHEET_QUERY = '(max-width: 640px)';
 const CHAT_SEARCH_THRESHOLD = 6;
 const PANEL_TRANSITION_MS = 240;
-const LONG_PRESS_MS = 420;
+const LONG_PRESS_MS = 350;
+// Start fetching a character's chats this far into a press, so the list is
+// usually ready when the panel opens without taxing quick taps.
+const PREFETCH_DELAY_MS = 150;
+const CHAT_CACHE_FRESH_MS = 5000;
 
 const STRINGS = {
     en: {
@@ -179,6 +183,7 @@ const state = {
     records: null,
     recordByAvatar: new Map(),
     chatCache: new Map(),
+    chatRequests: new Map(),
     listeners: [],
     domListeners: [],
     busyAvatars: new Set(),
@@ -186,6 +191,8 @@ const state = {
     page: 1,
     renderFrame: 0,
     pressTimer: 0,
+    prefetchTimer: 0,
+    pressedCard: null,
     pressStartX: 0,
     pressStartY: 0,
     pressActive: false,
@@ -661,6 +668,7 @@ function ensureRoot() {
         root.addEventListener('pointerup', handlePointerEnd);
         root.addEventListener('pointercancel', handlePointerEnd);
         root.addEventListener('contextmenu', handleCardContextMenu);
+        root.addEventListener('pointerover', handlePointerOver);
 
         const heading = createElement('h1', 'acg-visually-hidden', text('title'));
 
@@ -788,23 +796,35 @@ async function enterCharacter(record, button, { chatId = null, newChat = false }
 
     const usesPanel = state.panel.record?.avatarKey === record.avatarKey;
     setButtonBusy(button, true);
+    button.closest('.acg-chat, .acg-card')?.classList.add('is-loading');
     if (usesPanel) setPanelBusy(true);
     state.holdOpen = Boolean(chatId || newChat);
     let entered = false;
     try {
+        // Point the character at the chosen (or a brand-new) chat before
+        // selecting it, so SillyTavern loads that chat once instead of loading
+        // the current chat first and then switching.
+        let target = chatId;
+        if (newChat) {
+            const name = state.context.characters[index]?.name || record.name;
+            target = `${name} - ${state.context.humanizedDateTime?.() ?? Date.now()}`;
+        }
+        if (target && String(state.context.characterId) !== String(index)) {
+            await updateRemoteChatName(String(index), target);
+        }
         await state.context.selectCharacterById(index, { switchMenu: false });
         if (!state.ready || state.lifecycle !== lifecycle) return;
         const selected = String(refreshContext().characterId) === String(index);
-        if (selected && newChat) {
-            await doNewChat();
-        } else if (selected && chatId && state.context.getCurrentChatId?.() !== chatId) {
-            await openCharacterChat(chatId);
+        if (selected && target && state.context.getCurrentChatId?.() !== target) {
+            if (newChat) await doNewChat();
+            else await openCharacterChat(target);
         }
         entered = selected;
     } catch (error) {
         showError(chatId || newChat ? 'chatOpenError' : 'openError', error);
     } finally {
         state.holdOpen = false;
+        button.closest('.acg-chat, .acg-card')?.classList.remove('is-loading');
         if (button.isConnected) setButtonBusy(button, false);
         if (usesPanel) setPanelBusy(false);
         if (state.ready && state.lifecycle === lifecycle) {
@@ -968,7 +988,7 @@ function openPanel(record, trigger) {
     if (!alreadyOpen) {
         state.panel.record = record;
         state.panel.filter = '';
-        state.panel.chats = state.chatCache.get(record.avatarKey) ?? null;
+        state.panel.chats = state.chatCache.get(record.avatarKey)?.chats ?? null;
         state.panel.status = state.panel.chats ? 'ready' : 'loading';
         if (parts.input instanceof HTMLInputElement) parts.input.value = '';
         state.panel.returnFocus = trigger instanceof HTMLElement ? trigger : null;
@@ -1048,7 +1068,38 @@ function normalizeChat(chat) {
     };
 }
 
-async function loadChats(record) {
+/**
+ * Fetches a character's chats, sharing one request between callers (a press
+ * prefetch and the panel) and reusing results younger than CHAT_CACHE_FRESH_MS.
+ */
+function fetchChats(record, index, { force = false } = {}) {
+    const cached = state.chatCache.get(record.avatarKey);
+    if (!force && cached && Date.now() - cached.fetchedAt < CHAT_CACHE_FRESH_MS) {
+        return Promise.resolve(cached.chats);
+    }
+    const pending = state.chatRequests.get(record.avatarKey);
+    if (pending) return pending;
+
+    const request = getPastCharacterChats(index)
+        .then((response) => {
+            const chats = (Array.isArray(response) ? response : [])
+                .map(normalizeChat)
+                .filter(Boolean)
+                .sort((left, right) => right.timestamp - left.timestamp || left.id.localeCompare(right.id));
+            state.chatCache.set(record.avatarKey, { chats, fetchedAt: Date.now() });
+            return chats;
+        })
+        .finally(() => state.chatRequests.delete(record.avatarKey));
+    state.chatRequests.set(record.avatarKey, request);
+    return request;
+}
+
+function prefetchChats(record) {
+    const index = findCurrentCharacter(record.avatarKey);
+    if (index >= 0) fetchChats(record, index).catch((error) => warn('prefetch', error));
+}
+
+async function loadChats(record, { force = false } = {}) {
     const requestId = ++state.panel.requestId;
     const index = findCurrentCharacter(record.avatarKey);
     if (index < 0) {
@@ -1059,13 +1110,8 @@ async function loadChats(record) {
     }
 
     try {
-        const response = await getPastCharacterChats(index);
+        const chats = await fetchChats(record, index, { force });
         if (requestId !== state.panel.requestId || state.panel.record?.avatarKey !== record.avatarKey) return;
-        const chats = (Array.isArray(response) ? response : [])
-            .map(normalizeChat)
-            .filter(Boolean)
-            .sort((left, right) => right.timestamp - left.timestamp || left.id.localeCompare(right.id));
-        state.chatCache.set(record.avatarKey, chats);
         state.panel.chats = chats;
         state.panel.status = 'ready';
     } catch (error) {
@@ -1273,7 +1319,7 @@ async function deleteChat(record, chatId, button) {
     } finally {
         setPanelBusy(false);
         if (state.ready && state.lifecycle === lifecycle && state.panel.record?.avatarKey === record.avatarKey) {
-            await loadChats(record);
+            await loadChats(record, { force: true });
         }
     }
 }
@@ -1319,7 +1365,7 @@ async function renameChat(record, chatId, button) {
     } finally {
         setPanelBusy(false);
         if (state.ready && state.lifecycle === lifecycle && state.panel.record?.avatarKey === record.avatarKey) {
-            await loadChats(record);
+            await loadChats(record, { force: true });
         }
     }
 }
@@ -1395,7 +1441,7 @@ function handlePanelAction(button) {
     if (action === 'retry-chats') {
         state.panel.status = 'loading';
         renderPanel();
-        return void loadChats(record);
+        return void loadChats(record, { force: true });
     }
     if (action === 'delete-character') {
         return void confirmDelete(record, button).then((deleted) => {
@@ -1413,7 +1459,11 @@ function handlePanelAction(button) {
 
 function clearPressTimer() {
     window.clearTimeout(state.pressTimer);
+    window.clearTimeout(state.prefetchTimer);
     state.pressTimer = 0;
+    state.prefetchTimer = 0;
+    state.pressedCard?.classList.remove('acg-card--pressing');
+    state.pressedCard = null;
 }
 
 function showTouchHintOnce() {
@@ -1434,10 +1484,13 @@ function handlePointerDown(event) {
     open.setPointerCapture?.(event.pointerId);
     state.pressStartX = event.clientX;
     state.pressStartY = event.clientY;
+    const record = state.recordByAvatar.get(open.dataset.avatar || '');
+    state.pressedCard = open.closest('.acg-card');
+    state.pressedCard?.classList.add('acg-card--pressing');
+    if (record) state.prefetchTimer = window.setTimeout(() => prefetchChats(record), PREFETCH_DELAY_MS);
     state.pressTimer = window.setTimeout(() => {
-        state.pressTimer = 0;
+        clearPressTimer();
         state.pressRevealed = true;
-        const record = state.recordByAvatar.get(open.dataset.avatar || '');
         if (!record) return;
         navigator.vibrate?.(8);
         openPanel(record, open);
@@ -1445,7 +1498,7 @@ function handlePointerDown(event) {
 }
 
 function handlePointerMove(event) {
-    if (!state.pressTimer) return;
+    if (!state.pressTimer && !state.pressedCard) return;
     if (Math.abs(event.clientX - state.pressStartX) > 10
         || Math.abs(event.clientY - state.pressStartY) > 10) {
         clearPressTimer();
@@ -1469,6 +1522,13 @@ function handleClickCapture(event) {
     if (!suppress) return;
     event.preventDefault();
     event.stopPropagation();
+}
+
+function handlePointerOver(event) {
+    if (event.pointerType !== 'mouse') return;
+    const history = event.target instanceof Element ? event.target.closest('[data-action="history"]') : null;
+    const record = history instanceof HTMLElement ? state.recordByAvatar.get(history.dataset.avatar || '') : null;
+    if (record) prefetchChats(record);
 }
 
 function handleCardContextMenu(event) {
@@ -1761,7 +1821,7 @@ export function cleanup() {
     state.listeners = [];
     state.domListeners = [];
     window.cancelAnimationFrame(state.renderFrame);
-    window.clearTimeout(state.pressTimer);
+    clearPressTimer();
     window.clearTimeout(state.panel.closeTimer);
     state.root?.remove();
     state.settingsRoot?.remove();
@@ -1773,6 +1833,7 @@ export function cleanup() {
     state.records = null;
     state.recordByAvatar.clear();
     state.chatCache.clear();
+    state.chatRequests.clear();
     state.busyAvatars.clear();
     state.query = '';
     state.page = 1;
